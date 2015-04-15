@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <pcap.h>
 #include <net/if.h>
+#include <stdlib.h>
+
 
 typedef struct ip_addr	{
 unsigned char one;
@@ -8,6 +10,8 @@ unsigned char two;
 unsigned char three;
 unsigned char four;
 }Ip_addr;
+
+
 //structure pour découper l'adresse IP et mask
 void affichage_ip(bpf_u_int32 net, bpf_u_int32 mask);
 
@@ -18,14 +22,14 @@ int main(int argc, char **argv)
     bpf_u_int32 net, mask;
     char *filtre = "src port 80";
 
-    dev = "wlan0";
-/*	dev = pcap_lookupdev(errbuf);
+//    dev = "wlan0";
+	dev = pcap_lookupdev(errbuf);
     if (dev == NULL)
     {
         fprintf(stderr, "Couldn't find default device : %s\n", errbuf);
         exit(-1);
     }
-*/
+
     printf("Interface : %s\n", dev);
 
     pcap_t *desc = pcap_open_live(dev, 1514, IFF_PROMISC, 1000, errbuf); // Récupère le descripeur
@@ -37,6 +41,11 @@ int main(int argc, char **argv)
     }
 
     affichage_ip(net, mask);
+
+	if((desc=pcap_open_live(dev,1514,IFF_PROMISC,1000,errbuf))==NULL) {
+		fprintf(stderr,"unable to open descriptor : %s\n",errbuf);
+		exit(-1);
+	}
 
     struct bpf_program fp;
     pcap_compile(desc, &fp, "src port 80", 0x100, mask);
