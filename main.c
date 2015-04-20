@@ -25,7 +25,7 @@ int main(int argc, char **argv)
     char *dev;
     char errbuf[PCAP_ERRBUF_SIZE];
     bpf_u_int32 net, mask;
-	char *filtre = "";
+	char *filtre = "icmp";
 	pcap_t *desc;
 
 //    dev = "wlan0";
@@ -83,14 +83,37 @@ void affichage_ip(bpf_u_int32 net, bpf_u_int32 mask)
 
 void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *buff){
 	struct iphdr *ip = NULL;
-//	struct tcphdr *tcp = NULL;
+	struct tcphdr *tcp = NULL;
 
-	ip=(struct iphdr *)buff;
+	ip=(struct iphdr *)(buff+14);
+	tcp=(struct tcphdr *)(buff+34);
 	struct sockaddr_in saddr, daddr;
 	saddr.sin_addr.s_addr=ip->saddr;
-//	daddr.sin_addr.s_addr=ip->daddr;
+	daddr.sin_addr.s_addr=ip->daddr;
 //	Ip_addr *p_sip = (Ip_addr *)&ip->saddr;
-	Ip_addr *p_dip = (Ip_addr *)&ip->daddr;
+//	Ip_addr *p_dip = (Ip_addr *)&ip->daddr;
 	//system("clear");
-	printf("Check : %d\nDaddr : %d.%d.%d.%d\nFrag_off : %d\nId : %d\nIhl : %d\nProtocol : %d\nSaddr : %s\nTos : %d\nTot_len : %d\nTtl : %d\nversion: %d\n\n", ip->check, p_dip->one, p_dip->two, p_dip->three, p_dip->four, ip->frag_off, ip->id, ip->ihl, ip->protocol, inet_ntoa(daddr.sin_addr), ip->tos, ip->tot_len, ip->ttl, ip->version);
+	printf("Check : %d\n"
+		   "Daddr : %s\n"
+		   "Frag_off : %d\n"
+		   "Id : %d\n"
+		   "Ihl : %d\n"
+		   "Protocol : %d\n"
+		   "Saddr : %s\n"
+		   "Tos : %d\n"
+		   "Tot_len : %d\n"
+		   "Ttl : %d\nversion: %d\n"
+		   "\n\n\n",
+		   ip->check,
+		   inet_ntoa(daddr.sin_addr),
+		   ip->frag_off,
+		   ip->id,
+		   ip->ihl,
+		   ip->protocol,
+		   inet_ntoa(saddr.sin_addr),
+		   ip->tos,
+		   ip->tot_len,
+		   ip->ttl,
+		   ip->version
+		   );
 }
