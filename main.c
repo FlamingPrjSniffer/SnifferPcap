@@ -112,30 +112,36 @@ void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *buff){
 	ip=(struct iphdr *)(buff+14);
 	tcp=(struct tcphdr *)(buff+34);
 	struct sockaddr_in saddr, daddr;
-	saddr.sin_addr.s_addr=ip->saddr;
-	daddr.sin_addr.s_addr=ip->daddr;
+    saddr.sin_addr.s_addr=ip->saddr;
+    daddr.sin_addr.s_addr=ip->daddr;
 //	Ip_addr *p_sip = (Ip_addr *)&ip->saddr;
 //	Ip_addr *p_dip = (Ip_addr *)&ip->daddr;
 	//system("clear");
 
+    // Le strdup permet au ntoa de ne pas écraser la valeur précédente !!!!!!!!!!! :D
+char *source_ip=strdup(inet_ntoa(saddr.sin_addr));
+char *dest_ip=strdup(inet_ntoa(daddr.sin_addr));
+
+
+
 	printf("Check : %d\n"
+           "Saddr : %s\n"
 		   "Daddr : %s\n"
 		   "Frag_off : %d\n"
 		   "Id : %d\n"
 		   "Ihl : %d\n"
-		   "Protocol : %d\n"
-		   "Saddr : %s\n"
+           "Protocol : %d\n"
 		   "Tos : %d\n"
 		   "Tot_len : %d\n"
 		   "Ttl : %d\nversion: %d\n"
 		   "\n\n\n",
-		   ip->check,
-		   inet_ntoa(daddr.sin_addr),
+           ip->check,
+           source_ip,
+           dest_ip,
 		   ip->frag_off,
 		   ip->id,
 		   ip->ihl,
-		   ip->protocol,
-		   inet_ntoa(saddr.sin_addr),
+           ip->protocol,
 		   ip->tos,
 		   ip->tot_len,
 		   ip->ttl,
