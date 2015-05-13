@@ -11,7 +11,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-
+#include <signal.h>
 
 typedef struct ip_addr	{
 unsigned char one;
@@ -26,6 +26,7 @@ int sockfd;
 void affichage_ip(bpf_u_int32 net, bpf_u_int32 mask);
 void callback(u_char *user,const struct pcap_pkthdr *h, const u_char *buff);
 unsigned short in_cksum(unsigned short *addr, int len);
+void fin_de_programme();
 
 int main(int argc, char **argv)
 {
@@ -34,7 +35,7 @@ int main(int argc, char **argv)
 	bpf_u_int32 net, mask;
 	char *filtre = "icmp";
 	pcap_t *desc;
-
+	signal(SIGINT, fin_de_programme);
 //    dev = "wlan0";
 	dev = pcap_lookupdev(errbuf);
 	if (dev == NULL)
@@ -251,4 +252,15 @@ unsigned short in_cksum(unsigned short *addr, int len)
 	sum += (sum >> 16);             /* add carry */
 	answer = ~sum;              /* truncate to 16 bits */
 	return (answer);
+}
+
+void fin_de_programme(){
+	printf("interruption du programme, fermeture du fichier de sortie\n");
+	if(close(rawFile)!=0){
+		perror("erreur à la fermeture du fichier rawFile\n");
+		exit(EXIT_FAILURE);
+		}
+	else {
+		exit(EXIT_SUCCESS);
+	}
 }
