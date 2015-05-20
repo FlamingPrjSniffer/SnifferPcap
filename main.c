@@ -123,6 +123,7 @@ void affichage_ip(bpf_u_int32 net, bpf_u_int32 mask)
 
 
 void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *buff){
+	struct ether_header *eh = NULL;
 	struct iphdr *ip = NULL;
 	struct tcphdr *tcp = NULL;
 
@@ -131,6 +132,7 @@ void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *buff){
 		exit(-1);
 	}
 
+	eh = (struct ether_header *) buff;
 	ip=(struct iphdr *)(buff+14);
 	tcp=(struct tcphdr *)(buff+34);
 	struct sockaddr_in saddr, daddr;
