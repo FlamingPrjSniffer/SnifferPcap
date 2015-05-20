@@ -8,11 +8,14 @@
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
 #include <netinet/in.h>
+#include <netinet/ether.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <signal.h>
 #include <string.h>
+#include <linux/if_packet.h>
+#include <sys/ioctl.h>
 
 typedef struct ip_addr	{
 	unsigned char one;
@@ -29,9 +32,10 @@ void callback(u_char *user,const struct pcap_pkthdr *h, const u_char *buff);
 unsigned short in_cksum(unsigned short *addr, int len);
 void fin_de_programme();
 
+char *interface;
+
 int main(int argc, char **argv)
 {
-	char *dev;
 	char errbuf[PCAP_ERRBUF_SIZE];
 	bpf_u_int32 net, mask;
 	char *filtre = "ip";
@@ -42,23 +46,23 @@ int main(int argc, char **argv)
 
 
 	// Find the default network interface
-	dev = pcap_lookupdev(errbuf);
-	if (dev == NULL)
+	interface = pcap_lookupdev(errbuf);
+	if (interface == NULL)
 	{
 		fprintf(stderr, "Couldn't find default device : %s\n", errbuf);
 		exit(-1);
 	}
-	printf("Interface : %s\n", dev);
+	printf("Interface : %s\n", interface);
 
 
 	// Opening the interface
-	if((desc=pcap_open_live(dev,1514,IFF_PROMISC,1000,errbuf))==NULL) {
+	if((desc=pcap_open_live(interface,1514,IFF_PROMISC,1000,errbuf))==NULL) {
 		fprintf(stderr,"unable to open descriptor : %s\n",errbuf);
 		exit(-1);
 	}
 
 	// Get the IP and Mask of the interface
-	if(pcap_lookupnet(dev, &net, &mask, errbuf) == -1)
+	if(pcap_lookupnet(interface, &net, &mask, errbuf) == -1)
 	{
 		fprintf(stderr,"unable to lookup : %s\n", errbuf);
 		return(-1);
@@ -127,6 +131,15 @@ void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *buff){
 	struct iphdr *ip = NULL;
 	struct tcphdr *tcp = NULL;
 
+	struct sockaddr_ll socket_address;
+
+	/*ifreq corresponding to the interface we are sniffing*/
+	struct ifreq if_idx;
+	memset(&if_idx, 0, sizeof(struct ifreq));
+	strncpy(if_idx.ifr_name, interface, IFNAMSIZ-1);
+	if (ioctl(sockfd, SIOCGIFINDEX, &if_idx) < 0)
+		perror("SIOCGIFINDEX");
+
 	if (write(rawFile, buff, h->caplen) < 0){
 		perror("Write");
 		exit(-1);
@@ -135,6 +148,7 @@ void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *buff){
 	eh = (struct ether_header *) buff;
 	ip=(struct iphdr *)(buff+14);
 	tcp=(struct tcphdr *)(buff+34);
+
 	struct sockaddr_in saddr, daddr;
 	saddr.sin_addr.s_addr=ip->saddr;
 	daddr.sin_addr.s_addr=ip->daddr;
@@ -143,23 +157,23 @@ void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *buff){
 	//system("clear");
 
     // Le strdup permet au ntoa de ne pas écraser la valeur précédente !!!!!!!!!!! :D
-	char *source_ip=strdup(inet_ntoa(saddr.sin_addr));
+/*	char *source_ip=strdup(inet_ntoa(saddr.sin_addr));
 	char *dest_ip=strdup(inet_ntoa(daddr.sin_addr));
 
 	printf("Check : %d\n"
-           "Saddr : %s\n"
+		   "Saddr : %s\n"
 		   "Daddr : %s\n"
 		   "Frag_off : %d\n"
 		   "Id : %d\n"
 		   "Ihl : %d\n"
-           "Protocol : %d\n"
+		   "Protocol : %d\n"
 		   "Tos : %d\n"
 		   "Tot_len : %d\n"
 		   "Ttl : %d\nversion: %d\n"
 		   "\n\n\n",
-           ip->check,
-           source_ip,
-           dest_ip,
+		   ip->check,
+		   source_ip,
+		   dest_ip,
 		   ip->frag_off,
 		   ip->id,
 		   ip->ihl,
@@ -226,8 +240,7 @@ void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *buff){
 		   tcp->urg_ptr,
 		   tcp->window
 		   );
-
-
+*/
 	ip->tos=3;
 	ip->check = in_cksum((unsigned short *)ip, sizeof(struct iphdr));
 
