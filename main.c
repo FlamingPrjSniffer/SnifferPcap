@@ -17,6 +17,14 @@
 #include <linux/if_packet.h>
 #include <sys/ioctl.h>
 
+
+#define MY_DEST_MAC0	0x10
+#define MY_DEST_MAC1	0xbf
+#define MY_DEST_MAC2	0x48
+#define MY_DEST_MAC3	0x29
+#define MY_DEST_MAC4	0x16
+#define MY_DEST_MAC5	0x6E
+
 typedef struct ip_addr	{
 	unsigned char one;
 	unsigned char two;
@@ -92,18 +100,18 @@ int main(int argc, char **argv)
 	}
 
 	// Open output socket
-	if ((sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW)) == -1) {
+	if ((sockfd = socket(AF_PACKET, SOCK_RAW, IPPROTO_RAW)) == -1) {
 		perror("socket");
 		exit(EXIT_FAILURE);
 	}
 
-	int optval=1;
 
 	/*The socket is opened with IPPROTO_RAW.
 	* On Linux, the kernel will automatily activate IP_HDRINCL to let use handle the IP Header
 	* On FreeBSD, it's our job to do it
 	*/
 #ifdef __FreeBSD__
+	int optval=1;
 	setsockopt(sockfd, IPPROTO_IP, IP_HDRINCL, &optval, sizeof(int));
 #endif
 
@@ -127,10 +135,8 @@ void affichage_ip(bpf_u_int32 net, bpf_u_int32 mask)
 
 
 void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *buff){
-	struct ether_header *eh = NULL;
-	struct iphdr *ip = NULL;
-	struct tcphdr *tcp = NULL;
-
+	struct ether_header *eth_h = (struct ether_header *) buff;
+	struct iphdr *ip_h = NULL;
 	struct sockaddr_ll socket_address;
 
 	/*ifreq corresponding to the interface we are sniffing*/
@@ -140,21 +146,24 @@ void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *buff){
 	if (ioctl(sockfd, SIOCGIFINDEX, &if_idx) < 0)
 		perror("SIOCGIFINDEX");
 
+	struct ifreq if_mac;
+	memset(&if_mac, 0, sizeof(struct ifreq));
+	strncpy(if_mac.ifr_name, interface, IFNAMSIZ-1);
+	if (ioctl(sockfd, SIOCGIFHWADDR, &if_mac) < 0)
+		perror("SIOCGIFHWADDR");
+
+	/*Ecriture dans le fichier raw*/
 	if (write(rawFile, buff, h->caplen) < 0){
 		perror("Write");
 		exit(-1);
 	}
 
-	eh = (struct ether_header *) buff;
-	ip=(struct iphdr *)(buff+14);
-	tcp=(struct tcphdr *)(buff+34);
+	ip_h=(struct iphdr *)(buff+14);
 
-	struct sockaddr_in saddr, daddr;
-	saddr.sin_addr.s_addr=ip->saddr;
-	daddr.sin_addr.s_addr=ip->daddr;
-//	Ip_addr *p_sip = (Ip_addr *)&ip->saddr;
-//	Ip_addr *p_dip = (Ip_addr *)&ip->daddr;
-	//system("clear");
+//	struct sockaddr_in saddr, daddr;
+//	saddr.sin_addr.s_addr=ip_h->saddr;
+//	daddr.sin_addr.s_addr=ip_h->daddr;
+
 
     // Le strdup permet au ntoa de ne pas écraser la valeur précédente !!!!!!!!!!! :D
 /*	char *source_ip=strdup(inet_ntoa(saddr.sin_addr));
@@ -241,18 +250,42 @@ void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *buff){
 		   tcp->window
 		   );
 */
-	ip->tos=3;
-	ip->check = in_cksum((unsigned short *)ip, sizeof(struct iphdr));
+	ip_h->tos=3;
+	ip_h->check = in_cksum((unsigned short *)ip_h, sizeof(struct iphdr));
 
-	daddr.sin_family       = AF_INET;
+//	daddr.sin_family = AF_INET;
+
+	/* Index of the network device */
+	socket_address.sll_ifindex = if_idx.ifr_ifindex;
+	/* Address length*/
+	socket_address.sll_halen = ETH_ALEN;
+	/* Destination MAC */
+	socket_address.sll_addr[0] = eth_h->ether_shost[0];
+	socket_address.sll_addr[1] = eth_h->ether_shost[1];
+	socket_address.sll_addr[2] = eth_h->ether_shost[2];
+	socket_address.sll_addr[3] = eth_h->ether_shost[3];
+	socket_address.sll_addr[4] = eth_h->ether_shost[4];
+	socket_address.sll_addr[5] = eth_h->ether_shost[5];
+
+//	socket_address.sll_addr[0] = MY_DEST_MAC0;
+//	socket_address.sll_addr[1] = MY_DEST_MAC1;
+//	socket_address.sll_addr[2] = MY_DEST_MAC2;
+//	socket_address.sll_addr[3] = MY_DEST_MAC3;
+//	socket_address.sll_addr[4] = MY_DEST_MAC4;
+//	socket_address.sll_addr[5] = MY_DEST_MAC5;
 
 	int nbsend;
+	// l'adresse mac sera présente car on utilise sendto avec une structure ip, le noyau suppose donc qu'il est censé gérer l'ethernet
+//	printf("Tot len : %d\n", ntohs(ip->tot_len));
+//	if( (nbsend=sendto(sockfd, buff+14, ntohs(ip->tot_len), 0, (struct sockaddr*)&daddr, sizeof(struct sockaddr_in))) < 0){
+//		perror("Error on sendTo\n");
+//	} else
+//		printf("Envoyé %d\n", nbsend);
 
-	// l'adresse mac sera là
-	printf("Tot len : %d\n", ntohs(ip->tot_len));
-	if( (nbsend=sendto(sockfd, buff+14, ntohs(ip->tot_len), 0, (struct sockaddr*)&daddr, sizeof(struct sockaddr_in))) < 0){
-		perror("Error on sendTo\n");
-	} else
+	// h->len
+	if ( (nbsend=sendto(sockfd, buff, ntohs(ip_h->tot_len), 0, (struct sockaddr*)&socket_address, sizeof(struct sockaddr_ll))) < 0)
+		perror("Send failed\n");
+	else
 		printf("Envoyé %d\n", nbsend);
 }
 
